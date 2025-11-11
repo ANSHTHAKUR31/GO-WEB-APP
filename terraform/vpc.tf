@@ -1,44 +1,41 @@
-
-provider "aws" {
-  region = var.aws_region
-}
-
-data "aws_availability_zones" "available" {}
-
-locals {
-  cluster_name = "abhi-eks-${random_string.suffix.result}"
-}
-
-resource "random_string" "suffix" {
-  length  = 8
-  special = false
-}
-
-module "vpc" {
+module "vpc_eks" {
   source  = "terraform-aws-modules/vpc/aws"
-  version = "5.7.0"
+  version = "5.18.1"
 
-  name                 = "abhi-eks-vpc"
-  cidr                 = var.vpc_cidr
-  azs                  = data.aws_availability_zones.available.names
-  private_subnets      = ["10.0.1.0/24", "10.0.2.0/24"]
-  public_subnets       = ["10.0.4.0/24", "10.0.5.0/24"]
-  enable_nat_gateway   = true
-  single_nat_gateway   = true
+  name = "${var.cluster_name}-vpc"
+
+  cidr                  = var.vpc_cidr
+
+  azs = var.azs
+  private_subnets = var.private_subnets
+  public_subnets  = var.public_subnets
+
+  enable_nat_gateway     = true
+  single_nat_gateway     = true
+  one_nat_gateway_per_az = false
+
+
+  enable_vpn_gateway = true
+
   enable_dns_hostnames = true
   enable_dns_support   = true
 
-  tags = {
-    "kubernetes.io/cluster/${local.cluster_name}" = "shared"
+  propagate_private_route_tables_vgw = true
+  propagate_public_route_tables_vgw  = true
+
+  private_subnet_tags = {
+    "kubernetes.io/role/internal-elb" = "1",
+    "mapPublicIpOnLaunch"             = "FALSE"
+    "karpenter.sh/discovery"          = var.cluster_name
+    "kubernetes.io/role/cni"          = "1"
   }
 
   public_subnet_tags = {
-    "kubernetes.io/cluster/${local.cluster_name}" = "shared"
-    "kubernetes.io/role/elb"                      = "1"
+    "kubernetes.io/role/elb" = "1",
+    "mapPublicIpOnLaunch"    = "TRUE"
   }
 
-  private_subnet_tags = {
-    "kubernetes.io/cluster/${local.cluster_name}" = "shared"
-    "kubernetes.io/role/internal-elb"             = "1"
+  tags = {
+    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
   }
 }
